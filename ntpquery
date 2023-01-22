@@ -1,0 +1,23 @@
+#! /usr/bin/python3
+
+import ntplib
+import socket
+import logging
+import sys
+from time import ctime
+
+def print_time():
+    ntp_client = ntplib.NTPClient()
+    response = None
+    try:
+        response = ntp_client.request(sys.argv[1], version=4)
+    except (ntplib.NTPException, socket.gaierror) as e:
+        logging.error('NTP client request error: %s', str(e))
+        return 1
+    if response:
+        print (ctime(response.tx_time))
+        return 0
+#    else:
+#        raise ntplib.NTPException('No response from NTP server.')
+
+exit(print_time())

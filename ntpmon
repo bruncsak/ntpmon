@@ -1,0 +1,66 @@
+#! /usr/bin/env sh
+VERSION_DATE=2023-01-22
+USER_AGENT="https://github.com/bruncsak/ntpmon $VERSION_DATE"
+
+reachability_line()
+{
+  i=0
+  while [[ $i -lt 112 ]] ;do
+    if $NTPQUERY $1 > /dev/null 2>& 1 ;then
+      printf @
+    else
+      printf .
+    fi &
+    # Why not more frequently than 8 seconds?
+    # If you have discard statement and restrict statement with limited option in ntpd.conf,
+    # then packet loss would occur due to the time server dropping packet.
+    sleep 8
+    (( i += 1))
+  done
+  printf '\n'
+}
+
+fetch_score()
+{
+  curl -s -A "$USER_AGENT" "https://www.ntppool.org/scores/$2/log?limit=$1&monitor=*" |
+	  awk -F, '$6 == "" {printf("%s %5s", substr($2,7,11), $5); exit}'
+}
+
+monitor_loop()
+{
+  while : ;do
+    # Why are we doing twice with different limit?
+    # Because we always want to display fresh value,
+    # but the score is cached on the web server
+    # for a given URL for about 20 minutes. :(
+    printf '%17s ' "$(fetch_score $F1 $1)"
+    reachability_line $1
+    printf '%17s ' "$(fetch_score $F2 $1)"
+    reachability_line $1
+  done
+}
+
+if [[ $# -eq 0 ]] ;then
+  echo "IP address argument expected" >& 2
+  exit 1
+fi
+if command -v ntpdate > /dev/null ;then
+  NTPQUERY="ntpdate -d -q"
+elif command -v ntpquery > /dev/null ;then
+  NTPQUERY=ntpquery
+elif command -v $(dirname $0)/ntpquery > /dev/null ;then
+  NTPQUERY=$(dirname $0)/ntpquery
+else
+  echo "Neither ntpdate, nor ntpquery found" >& 2
+  exit 1
+fi
+PIDLIST=""
+TS="$(date +%s)"
+(( F1 = $RANDOM % 1500 ))
+(( F2 = $F1 + 1 ))
+for IP ;do
+  monitor_loop $IP > "${TS}_$IP.log" &
+  PIDLIST="$PIDLIST $!"
+done
+trap "kill $PIDLIST; exit" 1 2 3 13 15
+wait

@@ -1,0 +1,13 @@
+#! /usr/bin/env sh
+NTPSERVER_LIST="132.163.96.4 2610:20:6f15:15::27"
+# Please customize the above list of ntpservers for your needs
+
+if command -v ntpmon > /dev/null ;then
+  NTPMON=ntpmon
+elif command -v $(dirname $0)/ntpmon > /dev/null ;then
+  NTPMON=$(dirname $0)/ntpmon
+else
+  echo "No ntpmon found" >& 2
+  exit 1
+fi
+$NTPMON $NTPSERVER_LIST < /dev/null > /dev/null 2<> /dev/null &
