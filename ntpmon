@@ -1,5 +1,5 @@
 #! /usr/bin/env sh
-VERSION_DATE=2023-03-21
+VERSION_DATE=2023-12-18
 USER_AGENT="https://github.com/bruncsak/ntpmon $VERSION_DATE"
 
 reachability_line()
@@ -23,7 +23,7 @@ reachability_line()
 fetch_score()
 {
   curl -s -A "$USER_AGENT" "https://www.ntppool.org/scores/$2/log?limit=$1&monitor=*" |
-	  awk -F, '$7 == "recentmedian" {printf("%s %5s", substr($2,7,11), substr($5,1,5)); exit}'
+	  awk -F, '$7 == "recentmedian" {printf("%s %5s", gensub(/^.*-([0-9][0-9]-[0-9][0-9]).*([0-9][0-9]:[0-9][0-9]):.*$/, "\\1 \\2", "g", $2), substr($5,1,5)); exit}'
 }
 
 monitor_loop()
