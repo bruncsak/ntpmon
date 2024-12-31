@@ -1,5 +1,5 @@
 #! /usr/bin/env sh
-VERSION_DATE=2023-12-18
+VERSION_DATE=2024-12-31
 USER_AGENT="https://github.com/bruncsak/ntpmon $VERSION_DATE"
 
 reachability_line()
@@ -22,20 +22,39 @@ reachability_line()
 
 fetch_score()
 {
-  curl -s -A "$USER_AGENT" "https://www.ntppool.org/scores/$2/log?limit=$1&monitor=*" |
-	  awk -F, '$7 == "recentmedian" {printf("%s %5s", gensub(/^.*-([0-9][0-9]-[0-9][0-9]).*([0-9][0-9]:[0-9][0-9]):.*$/, "\\1 \\2", "g", $2), substr($5,1,5)); exit}'
+  curl -s -A "$USER_AGENT" "https://www.ntppool.org/scores/$2/log?limit=$1&monitor=recentmedian" |
+  awk -F, '{
+    if (NR == 1)
+    # CSV field name parsing
+    # ts_epoch,ts,offset,step,score,monitor_id,monitor_name,leap,error
+    # 2, 5, 7
+    # ts, score, monitor_name
+      for (i=1; i<=NF ; i++)
+        {
+        if ($i == "ts")
+          ts_index=i;
+        else
+        if ($i == "score")
+          score_index=i;
+        else
+        if ($i == "monitor_name")
+          monitor_name_index=i;
+        }
+    else
+    if ($monitor_name_index == "recentmedian")
+      {
+      printf("%s %5s", gensub(/^.*-([0-9][0-9]-[0-9][0-9]).*([0-9][0-9]:[0-9][0-9]):.*$/, "\\1 \\2", "g", $ts_index), substr($score_index,1,5));
+      exit;
+      }
+}'
 }
 
 monitor_loop()
 {
   while : ;do
-    # Why are we doing twice with different limit?
-    # Because we always want to display fresh value,
-    # but the score is cached on the web server
-    # for a given URL for about 20 minutes. :(
-    printf '%17s ' "$(fetch_score $F1 $1)"
-    reachability_line $1
-    printf '%17s ' "$(fetch_score $F2 $1)"
+    # There is a cache exception rule for monitor "recentmedian" and limit 1:
+    # https://github.com/bruncsak/ntpmon/issues/1
+    printf '%17s ' "$(fetch_score 1 $1)"
     reachability_line $1
   done
 }
@@ -56,8 +75,6 @@ else
 fi
 PIDLIST=""
 TS="$(date +%s)"
-(( F1 = $RANDOM % 1500 ))
-(( F2 = $F1 + 1 ))
 for IP ;do
   monitor_loop $IP > "${TS}_$IP.log" &
   PIDLIST="$PIDLIST $!"
